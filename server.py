@@ -84,11 +84,8 @@ def ensure_excel_file_exists():
             ])
             with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
                 df.to_excel(writer, sheet_name="TANK_STOCK", index=False, startrow=5)
-                ws = writer.sheets["TANK_STOCK"]
-                ws["B2"] = "NESB TANK STOCK"
-                ws["B4"] = "DATE :25.09.2026 @2PM"
         except Exception as e:
-            print(f"Error creating Excel file: {e}")
+            print(f"Error creating Excel: {e}")
 
 def parse_tank_sheet(filepath):
     if not os.path.exists(filepath):
@@ -107,7 +104,7 @@ def parse_tank_sheet(filepath):
             break
 
     if header_row_idx is None:
-        raise ValueError("Could not locate 'TANK NO.' header row in Excel file.")
+        raise ValueError("Could not locate 'TANK NO.' header row.")
 
     headers = [str(h).strip().upper() for h in df_raw.iloc[header_row_idx]]
     df = df_raw.iloc[header_row_idx + 1:].copy()
@@ -167,7 +164,11 @@ def parse_tank_sheet(filepath):
 def serve_index():
     if os.path.exists('index.html'):
         return send_file('index.html')
-    return "index.html not found.", 404
+    return "index.html not found", 404
+
+@app.route('/api/health')
+def health_check():
+    return jsonify({"status": "healthy"}), 200
 
 @app.route('/api/tanks')
 def get_tanks():
@@ -182,24 +183,25 @@ def get_tanks():
         total_balance = sum(max(0, t["balance"]) for t in tanks)
         plant_fill = (total_stock / total_cap * 100.0) if total_cap > 0 else 0.0
 
-        return jsonify({
-            "success": True,
-            "filePath": EXCEL_PATH,
-            "lastModified": mod_time_str,
-            "tankCount": len(tanks),
-            "summary": {
-                "totalCapacity": round(total_cap, 3),
-                "totalStock": round(total_stock, 3),
-                "totalBalance": round(total_balance, 3),
-                "plantFillPct": round(plant_fill, 2),
-                "heatedCount": len([t for t in tanks if t["heatingCoil"] == "YES"]),
-                "overfilledCount": len([t for t in tanks if t["isOverfilled"]]),
-                "emptyCount": len([t for t in tanks if t["tonnage"] == 0])
-            },
-            "tanks": tanks
-        })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+    return jsonify({
+        "success": True,
+        "filePath": EXCEL_PATH,
+        "lastModified": mod_time_str,
+        "tankCount": len(tanks),
+        "summary": {
+            "totalCapacity": round(total_cap, 3),
+            "totalStock": round(total_stock, 3),
+            "totalBalance": round(total_balance, 3),
+            "plantFillPct": round(plant_fill, 2),
+            "heatedCount": len([t for t in tanks if t["heatingCoil"] == "YES"]),
+            "overfilledCount": len([t for t in tanks if t["isOverfilled"]]),
+            "emptyCount": len([t for t in tanks if t["tonnage"] == 0])
+        },
+        "tanks": tanks
+    })
 
 @app.route('/api/upload', methods=['POST'])
 def upload_excel():
@@ -213,7 +215,6 @@ def upload_excel():
     file.save(filename)
     return jsonify({"success": True, "message": f"Updated {filename}"})
 
-# Pre-create excel file on app import for Gunicorn
 ensure_excel_file_exists()
 
 if __name__ == '__main__':
