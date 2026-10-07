@@ -100,9 +100,13 @@
           <button id="btnViewGrid" onclick="setView('grid')" class="px-3 py-1 rounded font-semibold text-slate-400 hover:text-white">Tank Farm Grid</button>
         </div>
 
-        <div class="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
-          <button onclick="setTheme('amber')" class="px-2 py-0.5 rounded font-bold text-amber-300 bg-amber-950/60 border border-amber-800">Amber</button>
-          <button onclick="setTheme('blue')" class="px-2 py-0.5 rounded font-bold text-sky-400 hover:bg-slate-800 ml-1">Blue</button>
+        <!-- Color Themes (Auto Product + 4 Themes) -->
+        <div class="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs gap-1">
+          <button onclick="setTheme('auto')" id="btnThemeAuto" class="px-2 py-0.5 rounded font-bold text-slate-200 bg-slate-800 border border-slate-600">Auto Cargo</button>
+          <button onclick="setTheme('amber')" id="btnThemeAmber" class="px-2 py-0.5 rounded font-bold text-amber-300 hover:bg-slate-800">Amber</button>
+          <button onclick="setTheme('blue')" id="btnThemeBlue" class="px-2 py-0.5 rounded font-bold text-sky-400 hover:bg-slate-800">Blue</button>
+          <button onclick="setTheme('green')" id="btnThemeGreen" class="px-2 py-0.5 rounded font-bold text-emerald-400 hover:bg-slate-800">Green</button>
+          <button onclick="setTheme('ruby')" id="btnThemeRuby" class="px-2 py-0.5 rounded font-bold text-rose-400 hover:bg-slate-800">Ruby</button>
         </div>
       </div>
 
@@ -162,9 +166,10 @@
 
   <script>
     let allTanks = [];
-    let currentTheme = 'amber';
+    let currentTheme = 'auto'; // Defaults to 'auto' so each product gets its own color!
     let currentView = 'chart';
 
+    // 4 Theme definitions + Auto Product Mapping
     const THEMES = {
       amber: {
         gradient: 'linear-gradient(90deg, #b45309 0%, #fbbf24 40%, #f59e0b 75%, #92400e 100%)',
@@ -175,8 +180,35 @@
         gradient: 'linear-gradient(90deg, #0369a1 0%, #38bdf8 45%, #0284c7 80%, #075985 100%)',
         border: '#0284c7',
         legendBg: '#38bdf8'
+      },
+      green: {
+        gradient: 'linear-gradient(90deg, #047857 0%, #34d399 45%, #10b981 80%, #065f46 100%)',
+        border: '#10b981',
+        legendBg: '#10b981'
+      },
+      ruby: {
+        gradient: 'linear-gradient(90deg, #be123c 0%, #fb7185 45%, #e11d48 80%, #881337 100%)',
+        border: '#e11d48',
+        legendBg: '#e11d48'
       }
     };
+
+    // Helper: Pick theme individually per tank based on product/cargo name
+    function getTankTheme(tank) {
+      if (currentTheme !== 'auto') {
+        return THEMES[currentTheme];
+      }
+      const c = (tank.cargo || '').toLowerCase();
+      if (c.includes('bio') || c.includes('green') || c.includes('eco') || c.includes('organic')) {
+        return THEMES.green;
+      } else if (c.includes('heavy') || c.includes('ruby') || c.includes('fuel') || c.includes('pitch') || c.includes('residual')) {
+        return THEMES.ruby;
+      } else if (c.includes('veg') || c.includes('palm') || c.includes('soap') || c.includes('amber') || c.includes('oil')) {
+        return THEMES.amber;
+      } else {
+        return THEMES.blue; // Default Marine Blue for Chemicals, Water, Solvent, Empty
+      }
+    }
 
     const emptyGradient = 'linear-gradient(90deg, #cbd5e1 0%, #f8fafc 45%, #e2e8f0 80%, #94a3b8 100%)';
 
@@ -234,12 +266,13 @@
     function renderChart(tanks) {
       const cont = document.getElementById('chartBars');
       cont.innerHTML = '';
-      const theme = THEMES[currentTheme];
-      document.getElementById('legendLiquidBox').style.background = theme.legendBg;
+      const defaultTheme = currentTheme === 'auto' ? THEMES.amber : THEMES[currentTheme];
+      document.getElementById('legendLiquidBox').style.background = defaultTheme.legendBg;
 
       tanks.forEach(t => {
         const fill = Math.min(100, Math.max(0, t.liquidFillPct));
         const empty = Math.max(0, 100 - fill);
+        const theme = getTankTheme(t); // Individually dynamic theme per tank!
 
         const col = document.createElement('div');
         col.className = "flex flex-col items-center justify-end h-full group relative cursor-pointer";
@@ -269,11 +302,12 @@
     function renderGrid(tanks) {
       const cont = document.getElementById('gridContainer');
       cont.innerHTML = '';
-      const theme = THEMES[currentTheme];
 
       tanks.forEach(t => {
         const fill = Math.min(100, Math.max(0, t.liquidFillPct));
         const empty = Math.max(0, 100 - fill);
+        const theme = getTankTheme(t); // Individually dynamic theme per tank!
+
         const card = document.createElement('div');
         card.className = "bg-slate-900 border border-slate-800 rounded-xl p-3 hover:border-amber-500/50 cursor-pointer transition flex flex-col justify-between";
         card.onclick = () => openTankModal(t);
@@ -339,7 +373,17 @@
         document.getElementById('btnViewChart').className = "px-3 py-1 rounded font-semibold text-slate-400 hover:text-white";
       }
     }
-    function setTheme(t) { currentTheme = t; applyFilters(); }
+
+    function setTheme(t) {
+      currentTheme = t;
+      ['btnThemeAuto', 'btnThemeAmber', 'btnThemeBlue', 'btnThemeGreen', 'btnThemeRuby'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.classList.remove('bg-slate-800', 'border', 'border-slate-600');
+      });
+      const activeBtn = document.getElementById('btnTheme' + t.charAt(0).toUpperCase() + t.slice(1));
+      if (activeBtn) activeBtn.classList.add('bg-slate-800', 'border', 'border-slate-600');
+      applyFilters();
+    }
 
     async function handleFileUpload(e) {
       const file = e.target.files[0];
