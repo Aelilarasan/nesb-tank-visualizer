@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""
-NESB STORAGE TANK VISUALIZER - LIVE EXCEL MONITORING SERVER
-Reads tank levels, tonnages, capacities, and balances directly from Excel.
-Auto-detects file updates when you save changes in Excel!
-
-Requirements:
-    pip install flask pandas openpyxl gunicorn
-Run:
-    python server.py
-Open in Browser:
-    http://localhost:5000
-"""
-
 import os
 import datetime
 from flask import Flask, jsonify, request, send_file
@@ -19,11 +6,9 @@ import pandas as pd
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 
-# Configuration: Path to your Excel or CSV file
 DEFAULT_EXCEL_FILENAME = "NESB_TANK_STOCK.xlsx"
 EXCEL_PATH = os.environ.get("TANK_EXCEL_PATH", DEFAULT_EXCEL_FILENAME)
 
-# Initial dataset (all 64 NESB tanks) used if the file does not already exist
 INITIAL_TANK_DATA = [
     ("NE 1", "SOAP STOCK ACID OIL", "SSAO/001,002,003", 37.910, 40.000, 2.090, "MS", "NO"),
     ("NE 2", "*NEED CLEAN EX SLB", "", 0.0, 40.000, 40.000, "MS", "NO"),
@@ -92,26 +77,28 @@ INITIAL_TANK_DATA = [
 ]
 
 def ensure_excel_file_exists():
-    """Generates an initial Excel file with the NESB dataset if not present."""
     if not os.path.exists(EXCEL_PATH):
-        print(f"[*] Creating sample Excel workbook: {EXCEL_PATH}")
-        df = pd.DataFrame(INITIAL_TANK_DATA, columns=[
-            "TANK NO.", "CARGO", "SUPPLIER", "TONNAGE", "TANK CAPACITY", "BALANCE", "TYPE", "HEATING COIL"
-        ])
-        with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name="TANK_STOCK", index=False, startrow=5)
-            ws = writer.sheets["TANK_STOCK"]
-            ws["B2"] = "NESB TANK STOCK"
-            ws["B4"] = "DATE :25.09.2026 @2PM"
+        try:
+            df = pd.DataFrame(INITIAL_TANK_DATA, columns=[
+                "TANK NO.", "CARGO", "SUPPLIER", "TONNAGE", "TANK CAPACITY", "BALANCE", "TYPE", "HEATING COIL"
+            ])
+            with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
+                df.to_excel(writer, sheet_name="TANK_STOCK", index=False, startrow=5)
+                ws = writer.sheets["TANK_STOCK"]
+                ws["B2"] = "NESB TANK STOCK"
+                ws["B4"] = "DATE :25.09.2026 @2PM"
+        except Exception as e:
+            print(f"Error creating Excel file: {e}")
 
 def parse_tank_sheet(filepath):
-    """Parses Excel with dynamic header detection (even if data starts on row 6)."""
+    if not os.path.exists(filepath):
+        ensure_excel_file_exists()
+
     if filepath.endswith('.csv'):
         df_raw = pd.read_csv(filepath, header=None)
     else:
         df_raw = pd.read_excel(filepath, header=None)
 
-    # Search first 20 rows for "TANK NO."
     header_row_idx = None
     for r_idx in range(min(20, len(df_raw))):
         row_values = [str(val).upper().strip() for val in df_raw.iloc[r_idx].dropna()]
@@ -157,7 +144,6 @@ def parse_tank_sheet(filepath):
         if capacity <= 0:
             continue
 
-        # Helper formulas: TONNAGE / CAPACITY and BALANCE / CAPACITY
         liquid_fill_pct = (tonnage / capacity) * 100.0 if capacity > 0 else 0.0
         empty_space_pct = (balance / capacity) * 100.0 if capacity > 0 else 0.0
 
@@ -181,14 +167,14 @@ def parse_tank_sheet(filepath):
 def serve_index():
     if os.path.exists('index.html'):
         return send_file('index.html')
-    return "index.html not found. Place index.html in the same directory.", 404
+    return "index.html not found.", 404
 
 @app.route('/api/tanks')
 def get_tanks():
-    ensure_excel_file_exists()
     try:
+        ensure_excel_file_exists()
         tanks = parse_tank_sheet(EXCEL_PATH)
-        mtime = os.path.getmtime(EXCEL_PATH)
+        mtime = os.path.getmtime(EXCEL_PATH) if os.path.exists(EXCEL_PATH) else datetime.datetime.now().timestamp()
         mod_time_str = datetime.datetime.fromtimestamp(mtime).strftime("%d/%m/%Y %I:%M:%S %p")
 
         total_cap = sum(t["capacity"] for t in tanks)
@@ -227,12 +213,9 @@ def upload_excel():
     file.save(filename)
     return jsonify({"success": True, "message": f"Updated {filename}"})
 
+# Pre-create excel file on app import for Gunicorn
+ensure_excel_file_exists()
+
 if __name__ == '__main__':
-    ensure_excel_file_exists()
     port = int(os.environ.get('PORT', 10000))
-    print("=" * 65)
-    print("  NESB STORAGE TANK VISUALIZER - LIVE MONITORING SERVER")
-    print(f"  Watching Excel file: {os.path.abspath(EXCEL_PATH)}")
-    print(f"  Listening on port: {port}")
-    print("=" * 65)
     app.run(host='0.0.0.0', port=port)
