@@ -5,7 +5,7 @@ Reads tank levels, tonnages, capacities, and balances directly from Excel.
 Auto-detects file updates when you save changes in Excel!
 
 Requirements:
-    pip install flask pandas openpyxl
+    pip install flask pandas openpyxl gunicorn
 Run:
     python server.py
 Open in Browser:
@@ -229,9 +229,10 @@ def upload_excel():
 
 if __name__ == '__main__':
     ensure_excel_file_exists()
+    port = int(os.environ.get('PORT', 10000))
     print("=" * 65)
     print("  NESB STORAGE TANK VISUALIZER - LIVE MONITORING SERVER")
     print(f"  Watching Excel file: {os.path.abspath(EXCEL_PATH)}")
-    print("  Open browser: http://localhost:5000")
+    print(f"  Listening on port: {port}")
     print("=" * 65)
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=port)
