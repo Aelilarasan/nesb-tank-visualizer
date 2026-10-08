@@ -215,7 +215,7 @@ def get_tanks():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route('/api/upload', methods=['POST'])
+@app.route('/api/upload', methods=['GET'])
 def upload_excel():
     if 'file' not in request.files:
         return jsonify({"success": False, "error": "No file uploaded"}), 400
