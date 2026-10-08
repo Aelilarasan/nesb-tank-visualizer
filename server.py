@@ -3,6 +3,13 @@
 NESB STORAGE TANK VISUALIZER - LIVE EXCEL MONITORING SERVER
 Reads tank levels, tonnages, capacities, and balances directly from Excel.
 Auto-detects file updates when you save changes in Excel!
+
+Requirements:
+    pip install flask pandas openpyxl
+Run:
+    python server.py
+Open in Browser:
+    http://localhost:5000
 """
 
 import os
@@ -104,6 +111,7 @@ def parse_tank_sheet(filepath):
     else:
         df_raw = pd.read_excel(filepath, header=None)
 
+    # Search first 20 rows for "TANK NO."
     header_row_idx = None
     for r_idx in range(min(20, len(df_raw))):
         row_values = [str(val).upper().strip() for val in df_raw.iloc[r_idx].dropna()]
@@ -149,6 +157,7 @@ def parse_tank_sheet(filepath):
         if capacity <= 0:
             continue
 
+        # Helper formulas: TONNAGE / CAPACITY and BALANCE / CAPACITY
         liquid_fill_pct = (tonnage / capacity) * 100.0 if capacity > 0 else 0.0
         empty_space_pct = (balance / capacity) * 100.0 if capacity > 0 else 0.0
 
@@ -220,4 +229,9 @@ def upload_excel():
 
 if __name__ == '__main__':
     ensure_excel_file_exists()
+    print("=" * 65)
+    print("  NESB STORAGE TANK VISUALIZER - LIVE MONITORING SERVER")
+    print(f"  Watching Excel file: {os.path.abspath(EXCEL_PATH)}")
+    print("  Open browser: http://localhost:5000")
+    print("=" * 65)
     app.run(host='0.0.0.0', port=5000, debug=True)
