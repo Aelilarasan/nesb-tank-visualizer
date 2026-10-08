@@ -46,3 +46,317 @@
         <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
         <span>Refresh</span>
       </button>
+
+      <label class="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg cursor-pointer transition shadow">
+        <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+        <span>Upload Excel</span>
+        <input type="file" id="excelFileInput" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleFileUpload(event)">
+      </label>
+    </div>
+  </header>
+
+  <!-- MAIN VIEW -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
+
+    <!-- KPI STATS OVERVIEW -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3" id="statsGrid">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5">
+        <div class="text-[10px] text-slate-400 uppercase font-mono">Total Tanks</div>
+        <div class="text-2xl font-bold font-mono text-slate-100" id="kpiTotalTanks">-</div>
+        <div class="text-[10px] text-slate-500">NESB Farm</div>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5">
+        <div class="text-[10px] text-slate-400 uppercase font-mono">Gross Capacity</div>
+        <div class="text-2xl font-bold font-mono text-slate-100"><span id="kpiGrossCap">-</span> <span class="text-xs text-slate-400 font-normal">MT</span></div>
+        <div class="text-[10px] text-slate-500">Nominal Total</div>
+      </div>
+      <div class="bg-slate-900 border border-amber-900/40 rounded-xl p-3.5">
+        <div class="text-[10px] text-amber-300 uppercase font-mono">Current Stock</div>
+        <div class="text-2xl font-bold font-mono text-amber-200"><span id="kpiTotalStock">-</span> <span class="text-xs text-amber-400 font-normal">MT</span></div>
+        <div class="text-[10px] text-amber-400 font-mono" id="kpiFillPct">- % Fill</div>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5">
+        <div class="text-[10px] text-slate-400 uppercase font-mono">Empty Ullage</div>
+        <div class="text-2xl font-bold font-mono text-slate-100"><span id="kpiTotalUllage">-</span> <span class="text-xs text-slate-400 font-normal">MT</span></div>
+        <div class="text-[10px] text-emerald-400">Available Headspace</div>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5">
+        <div class="text-[10px] text-slate-400 uppercase font-mono">Heated Tanks</div>
+        <div class="text-2xl font-bold font-mono text-orange-300" id="kpiHeatedCount">-</div>
+        <div class="text-[10px] text-orange-400/80">Coils Active</div>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5" id="kpiAlertCard">
+        <div class="text-[10px] text-slate-400 uppercase font-mono">Overfill Alerts</div>
+        <div class="text-2xl font-bold font-mono text-rose-300" id="kpiOverfillCount">-</div>
+        <div class="text-[10px] text-rose-400/80" id="kpiAlertDesc">-</div>
+      </div>
+    </div>
+
+    <!-- CONTROLS & FILTERS -->
+    <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-900 border border-slate-800 rounded-xl p-3">
+      <div class="flex items-center gap-2">
+        <div class="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
+          <button id="btnViewChart" onclick="setView('chart')" class="px-3 py-1 rounded font-semibold bg-amber-500 text-slate-950">100% Stacked Chart</button>
+          <button id="btnViewGrid" onclick="setView('grid')" class="px-3 py-1 rounded font-semibold text-slate-400 hover:text-white">Tank Farm Grid</button>
+        </div>
+
+        <div class="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
+          <button onclick="setTheme('amber')" class="px-2 py-0.5 rounded font-bold text-amber-300 bg-amber-950/60 border border-amber-800">Amber</button>
+          <button onclick="setTheme('blue')" class="px-2 py-0.5 rounded font-bold text-sky-400 hover:bg-slate-800 ml-1">Blue</button>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <input type="text" id="searchInput" oninput="applyFilters()" placeholder="Search tanks, cargo..." class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1 text-xs text-slate-200 focus:outline-none focus:border-amber-500 w-48">
+        <select id="filterMaterial" onchange="applyFilters()" class="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200">
+          <option value="ALL">All Materials</option>
+          <option value="MS">MS (Mild Steel)</option>
+          <option value="SS">SS (Stainless Steel)</option>
+          <option value="AL">AL (Aluminum)</option>
+        </select>
+        <select id="filterStatus" onchange="applyFilters()" class="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200">
+          <option value="ALL">All Status</option>
+          <option value="OVERFILL">Overfilled Only</option>
+          <option value="ACTIVE">Active Stock</option>
+          <option value="EMPTY">Dry / Empty</option>
+          <option value="HEATED">Heated</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- MAIN DISPLAY AREA -->
+    <!-- View 1: 100% Stacked Column Chart Sim -->
+    <div id="chartContainer" class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg relative flex flex-col">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4 text-xs">
+        <div>
+          <span class="font-bold text-slate-100">100% Stacked Cylindrical Storage Tank Chart</span>
+          <span class="text-slate-400 ml-2">(Gap Width: 15% • Specular 3D Reflection)</span>
+        </div>
+        <div class="flex items-center gap-4 text-slate-400">
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm" id="legendLiquidBox"></span><span class="text-slate-200">Liquid Fill %</span></div>
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-slate-300"></span><span>Empty Space % (Ullage)</span></div>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto custom-scrollbar pb-6" style="min-height: 380px;">
+        <div id="chartBars" class="flex items-end h-[280px] pt-4 pl-12 pr-4 relative min-w-max">
+          <!-- Bars generated via JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- View 2: Tank Farm Grid View -->
+    <div id="gridContainer" class="hidden grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+      <!-- Cards generated via JS -->
+    </div>
+
+  </main>
+
+  <!-- MODAL: TANK DOSSIER -->
+  <div id="tankModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+      <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <script>
+    let allTanks = [];
+    let currentTheme = 'amber';
+    let currentView = 'chart';
+
+    const THEMES = {
+      amber: {
+        gradient: 'linear-gradient(90deg, #b45309 0%, #fbbf24 40%, #f59e0b 75%, #92400e 100%)',
+        border: '#d97706',
+        legendBg: '#f59e0b'
+      },
+      blue: {
+        gradient: 'linear-gradient(90deg, #0369a1 0%, #38bdf8 45%, #0284c7 80%, #075985 100%)',
+        border: '#0284c7',
+        legendBg: '#38bdf8'
+      }
+    };
+
+    const emptyGradient = 'linear-gradient(90deg, #cbd5e1 0%, #f8fafc 45%, #e2e8f0 80%, #94a3b8 100%)';
+
+    async function refreshData() {
+      try {
+        const res = await fetch('/api/tanks');
+        const data = await res.json();
+        if (data.success) {
+          allTanks = data.tanks;
+          document.getElementById('liveFileStatus').innerText = data.filePath + ' • ' + data.lastModified;
+          document.getElementById('liveStatusDot').className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+          updateKPIs(data.summary);
+          applyFilters();
+        } else {
+          document.getElementById('liveFileStatus').innerText = 'Error: ' + data.error;
+          document.getElementById('liveStatusDot').className = "w-2 h-2 rounded-full bg-rose-500";
+        }
+      } catch (err) {
+        document.getElementById('liveFileStatus').innerText = 'Server offline (run server.py)';
+        document.getElementById('liveStatusDot').className = "w-2 h-2 rounded-full bg-amber-500";
+      }
+    }
+
+    function updateKPIs(s) {
+      document.getElementById('kpiTotalTanks').innerText = allTanks.length;
+      document.getElementById('kpiGrossCap').innerText = s.totalCapacity.toFixed(1);
+      document.getElementById('kpiTotalStock').innerText = s.totalStock.toFixed(2);
+      document.getElementById('kpiFillPct').innerText = s.plantFillPct.toFixed(1) + '% Fill';
+      document.getElementById('kpiTotalUllage').innerText = s.totalBalance.toFixed(1);
+      document.getElementById('kpiHeatedCount').innerText = s.heatedCount;
+      document.getElementById('kpiOverfillCount').innerText = s.overfilledCount;
+      document.getElementById('kpiAlertDesc').innerText = s.overfilledCount > 0 ? 'Critical Overflow!' : 'All in bounds';
+    }
+
+    function applyFilters() {
+      const q = document.getElementById('searchInput').value.toLowerCase();
+      const mat = document.getElementById('filterMaterial').value;
+      const status = document.getElementById('filterStatus').value;
+
+      const filtered = allTanks.filter(t => {
+        const matchQ = t.tankNo.toLowerCase().includes(q) || t.cargo.toLowerCase().includes(q) || t.supplier.toLowerCase().includes(q);
+        const matchMat = mat === 'ALL' || t.type === mat;
+        let matchSt = true;
+        if (status === 'OVERFILL') matchSt = t.isOverfilled;
+        else if (status === 'ACTIVE') matchSt = t.tonnage > 0 && !t.isOverfilled;
+        else if (status === 'EMPTY') matchSt = t.tonnage === 0;
+        else if (status === 'HEATED') matchSt = t.heatingCoil === 'YES';
+        return matchQ && matchMat && matchSt;
+      });
+
+      renderChart(filtered);
+      renderGrid(filtered);
+    }
+
+    function renderChart(tanks) {
+      const cont = document.getElementById('chartBars');
+      cont.innerHTML = '';
+      const theme = THEMES[currentTheme];
+      document.getElementById('legendLiquidBox').style.background = theme.legendBg;
+
+      tanks.forEach(t => {
+        const fill = Math.min(100, Math.max(0, t.liquidFillPct));
+        const empty = Math.max(0, 100 - fill);
+
+        const col = document.createElement('div');
+        col.className = "flex flex-col items-center justify-end h-full group relative cursor-pointer";
+        col.style.width = "36px";
+        col.style.marginRight = "6px"; // 15% Gap Width
+        col.onclick = () => openTankModal(t);
+
+        col.innerHTML = `
+          <div class="absolute -top-3.5 flex items-center justify-center">
+            ${t.isOverfilled ? '<span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>' : (t.heatingCoil === 'YES' ? '<span class="text-orange-400 text-[10px]">🔥</span>' : '')}
+          </div>
+          <div class="w-full h-full flex flex-col-reverse rounded-t-sm overflow-hidden border border-slate-600/60 shadow-sm group-hover:brightness-110">
+            <div style="height: ${fill}%; background: ${theme.gradient}; border-top: 1.5px solid ${theme.border};" class="w-full relative flex items-center justify-center">
+              ${fill > 15 ? `<span class="text-[9px] font-mono font-bold text-white drop-shadow transform -rotate-90 sm:rotate-0">${t.liquidFillPct.toFixed(0)}%</span>` : ''}
+            </div>
+            <div style="height: ${empty}%; background: ${emptyGradient};" class="w-full relative"></div>
+          </div>
+          <div class="w-full h-1 bg-slate-700 mt-0.5"></div>
+          <div class="mt-2 h-14 flex items-start justify-center">
+            <span class="text-[10px] font-mono font-semibold text-slate-300 transform -rotate-45 origin-top-left group-hover:text-amber-400 whitespace-nowrap block w-12">${t.tankNo}</span>
+          </div>
+        `;
+        cont.appendChild(col);
+      });
+    }
+
+    function renderGrid(tanks) {
+      const cont = document.getElementById('gridContainer');
+      cont.innerHTML = '';
+      const theme = THEMES[currentTheme];
+
+      tanks.forEach(t => {
+        const fill = Math.min(100, Math.max(0, t.liquidFillPct));
+        const empty = Math.max(0, 100 - fill);
+        const card = document.createElement('div');
+        card.className = "bg-slate-900 border border-slate-800 rounded-xl p-3 hover:border-amber-500/50 cursor-pointer transition flex flex-col justify-between";
+        card.onclick = () => openTankModal(t);
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between text-xs mb-1">
+            <span class="font-bold font-mono text-slate-200">${t.tankNo}</span>
+            <span class="text-[10px] bg-slate-800 px-1 rounded text-slate-400">${t.type}</span>
+          </div>
+          <div class="h-28 flex items-center justify-center my-1">
+            <div class="w-16 h-24 border border-slate-600 rounded flex flex-col-reverse overflow-hidden shadow-inner bg-slate-800">
+              <div style="height: ${fill}%; background: ${theme.gradient};" class="w-full flex items-center justify-center text-[9px] font-mono font-bold text-white">${fill > 15 ? fill.toFixed(0) + '%' : ''}</div>
+              <div style="height: ${empty}%; background: ${emptyGradient};" class="w-full"></div>
+            </div>
+          </div>
+          <div class="text-[11px] truncate text-slate-300 font-medium">${t.cargo || 'Empty'}</div>
+          <div class="text-[10px] font-mono text-slate-400 flex justify-between mt-1 pt-1 border-t border-slate-800">
+            <span>${t.tonnage.toFixed(1)} MT</span>
+            <span>${t.capacity.toFixed(0)} MT</span>
+          </div>
+        `;
+        cont.appendChild(card);
+      });
+    }
+
+    function openTankModal(t) {
+      const c = document.getElementById('modalContent');
+      c.innerHTML = `
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-xl font-bold font-mono text-amber-400">${t.tankNo}</span>
+          <span class="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-300 font-mono">${t.type}</span>
+          ${t.isOverfilled ? '<span class="text-xs bg-rose-950 border border-rose-700 text-rose-300 px-2 py-0.5 rounded font-bold">OVERFILL ALERT</span>' : ''}
+        </div>
+        <div class="space-y-2 text-xs">
+          <div class="flex justify-between border-b border-slate-800 pb-1"><span class="text-slate-400">Cargo:</span><span class="font-semibold text-slate-200">${t.cargo || 'Empty'}</span></div>
+          <div class="flex justify-between border-b border-slate-800 pb-1"><span class="text-slate-400">Supplier / Batch:</span><span class="text-slate-300">${t.supplier || '-'}</span></div>
+          <div class="flex justify-between border-b border-slate-800 pb-1"><span class="text-slate-400">Tonnage:</span><span class="font-mono font-bold text-amber-300">${t.tonnage.toFixed(3)} MT</span></div>
+          <div class="flex justify-between border-b border-slate-800 pb-1"><span class="text-slate-400">Capacity:</span><span class="font-mono text-slate-200">${t.capacity.toFixed(3)} MT</span></div>
+          <div class="flex justify-between border-b border-slate-800 pb-1"><span class="text-slate-400">Balance / Ullage:</span><span class="font-mono font-bold ${t.balance < 0 ? 'text-rose-400' : 'text-emerald-400'}">${t.balance.toFixed(3)} MT</span></div>
+          <div class="flex justify-between border-b border-slate-800 pb-1"><span class="text-slate-400">Heating Coil:</span><span class="text-slate-200">${t.heatingCoil === 'YES' ? '🔥 Steam Heated' : 'No Coil'}</span></div>
+          <div class="p-2.5 bg-slate-950 rounded-lg font-mono text-[11px] space-y-1 mt-3">
+            <div class="text-amber-300 flex justify-between"><span>Liquid Fill %:</span><span>${t.liquidFillPct.toFixed(2)}%</span></div>
+            <div class="text-slate-400 flex justify-between"><span>Empty Space %:</span><span>${t.emptySpacePct.toFixed(2)}%</span></div>
+          </div>
+        </div>
+      `;
+      document.getElementById('tankModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeModal() { document.getElementById('tankModal').classList.add('hidden'); }
+    function setView(v) {
+      currentView = v;
+      if (v === 'chart') {
+        document.getElementById('chartContainer').classList.remove('hidden');
+        document.getElementById('gridContainer').classList.add('hidden');
+        document.getElementById('btnViewChart').className = "px-3 py-1 rounded font-semibold bg-amber-500 text-slate-950";
+        document.getElementById('btnViewGrid').className = "px-3 py-1 rounded font-semibold text-slate-400 hover:text-white";
+      } else {
+        document.getElementById('chartContainer').classList.add('hidden');
+        document.getElementById('gridContainer').classList.remove('hidden');
+        document.getElementById('btnViewGrid').className = "px-3 py-1 rounded font-semibold bg-amber-500 text-slate-950";
+        document.getElementById('btnViewChart').className = "px-3 py-1 rounded font-semibold text-slate-400 hover:text-white";
+      }
+    }
+    function setTheme(t) { currentTheme = t; applyFilters(); }
+
+    async function handleFileUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        const d = await res.json();
+        if (d.success) refreshData();
+      } catch (err) { alert('Upload failed: ' + err); }
+    }
+
+    // Live auto-polling every 5 seconds to catch Excel saves
+    setInterval(refreshData, 5000);
+    refreshData();
+    lucide.createIcons();
+  </script>
+</body>
+</html>
