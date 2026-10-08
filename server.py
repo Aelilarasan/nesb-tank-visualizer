@@ -1,126 +1,102 @@
 #!/usr/bin/env python3
 """
-NESB STORAGE TANK VISUALIZER - LIVE EXCEL MONITORING SERVER
-Reads tank levels, tonnages, capacities, and balances directly from Excel.
-Auto-detects file updates when you save changes in Excel!
+NESB STORAGE TANK VISUALIZER - LIVE GOOGLE DRIVE & EXCEL SERVER
+Reads tank levels, tonnages, capacities, and balances directly from Google Drive.
+Auto-updates every day whenever you edit your file in Google Drive!
 
-Requirements:
-    pip install flask pandas openpyxl
-Run:
-    python server.py
-Open in Browser:
-    http://localhost:5000
+Render Start Command: gunicorn app:app
 """
 
 import os
+import io
+import re
 import datetime
 from flask import Flask, jsonify, request, send_file
 import pandas as pd
+import requests
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 
-# Configuration: Path to your Excel or CSV file
 DEFAULT_EXCEL_FILENAME = "NESB_TANK_STOCK.xlsx"
 EXCEL_PATH = os.environ.get("TANK_EXCEL_PATH", DEFAULT_EXCEL_FILENAME)
 
-# Initial dataset (all 64 NESB tanks) used if the file does not already exist
-INITIAL_TANK_DATA = [
-    ("NE 1", "SOAP STOCK ACID OIL", "SSAO/001,002,003", 37.910, 40.000, 2.090, "MS", "NO"),
-    ("NE 2", "*NEED CLEAN EX SLB", "", 0.0, 40.000, 40.000, "MS", "NO"),
-    ("NE 3", "SOAP STOCK", "*NE PRODUCTION PROGRESS", 27.340, 40.000, 12.660, "MS", "NO"),
-    ("NE 6", "LO1025", "BLEND", 21.750, 25.000, 3.250, "AL", "NO"),
-    ("NE 7", "LO-LB50", "BLEND", 25.040, 25.000, -0.040, "AL", "NO"),
-    ("NE 8 (SUM 2)", "PREPARE DRAIN WATER/OIL", "", 0.0, 24.000, 24.000, "MS", "YES"),
-    ("NE 11 (SUM 3)", "PREPARE DRAIN WATER/OIL", "", 0.0, 24.000, 24.000, "MS", "YES"),
-    ("NE 14", "MFA", "JUKSAN (BOTTOM OIL) *NEED TRANSFER IBC", 1.880, 35.000, 33.120, "MS", "YES"),
-    ("NE 15", "SOAP STOCK ACID OIL", "SSAO/003", 20.030, 35.000, 14.970, "MS", "NO"),
-    ("NE 16", "RESIDUE OIL", "BUNGE LIPID", 35.300, 70.000, 34.700, "SS", "NO"),
-    ("NE 21", "EFB OIL", "HOOD (MARAN)", 5.080, 17.000, 11.920, "MS", "NO"),
-    ("NE 21A", "UCO BLEND", "", 8.450, 17.000, 8.550, "MS", "NO"),
-    ("NE 22", "EMPTY", "", 0.0, 8.000, 8.000, "SS", "NO"),
-    ("NE 23", "LO-LB50", "BLEND", 17.950, 60.000, 42.050, "SS", "YES"),
-    ("NE 24", "EFB OIL", "BIOVISION EFB/168", 35.360, 50.000, 14.640, "SS", "YES"),
-    ("NE 25", "EFB OIL", "HOOD (MARAN/PERAK)", 71.270, 80.000, 8.730, "SS", "YES"),
-    ("NE 26", "SLB", "RICH OIL", 63.140, 70.000, 6.860, "SS", "YES"),
-    ("NE 27", "CRUDE GLYCERINE", "CGLY/001/26-BLD", 20.000, 30.000, 10.000, "SS", "YES"),
-    ("NE 28", "EFB OIL", "HOOD (MARAN) EFB/158", 30.000, 30.000, 0.0, "SS", "YES"),
-    ("NE 29", "EMPTY", "", 0.0, 30.000, 30.000, "SS", "YES"),
-    ("NE 30", "EFB OIL", "HOOD (PERAK)/(MARAN)", 73.470, 85.000, 11.530, "MS", "NO"),
-    ("NE 32", "UNDER REPAIR", "", 0.0, 48.000, 48.000, "MS", "YES"),
-    ("NE 34", "SLB HIGH MOISTURE", "SLB/097, SLB/113 @ MAO/003", 48.000, 48.000, 0.0, "MS", "YES"),
-    ("NE 35", "IFWO (WATER)", "", 20.000, 20.000, 0.0, "SS", "NO"),
-    ("NE 36", "SOAP STOCK", "*NE PRODUCTION INPROGRESS", 20.000, 20.000, 0.0, "SS", "YES"),
-    ("NE 37", "SLY", "YOGESWARI SLY/048, 049, 050.", 104.710, 105.000, 0.290, "MS", "YES"),
-    ("NE 38", "MAO", "PT UNIVERSAL MAO/011", 77.170, 105.000, 27.830, "MS", "YES"),
-    ("NE 39", "TANK USED DRAIN/DIRT", "", 0.0, 20.000, 20.000, "SS", "NO"),
-    ("NE 40", "SLY", "YOGESWARI SLY/044, 036", 33.720, 50.000, 16.280, "SS", "YES"),
-    ("NE 41", "SLY", "YOGESWARI", 4.770, 70.000, 65.230, "MS", "YES"),
-    ("NE 42", "SLY", "YOGESWARI SLY/151", 40.320, 70.000, 29.680, "MS", "YES"),
-    ("NE 47", "EFB OIL", "HOOD (MARAN)", 25.000, 25.000, 0.0, "MS", "NO"),
-    ("NE 48", "EFB OIL", "HOOD (MARAN)", 11.140, 25.000, 13.860, "MS", "NO"),
-    ("NE 49", "PKAO", "YOGESWARI PKAO/016", 42.740, 80.000, 37.260, "MS", "NO"),
-    ("NE 50", "EFB OIL", "BIOVISION EFB/146", 35.260, 80.000, 44.740, "MS", "NO"),
-    ("NE 51", "EFB OIL", "BIOVISION EFB/152,156", 70.920, 80.000, 9.080, "MS", "NO"),
-    ("NE 52", "PKAO", "SRI MAJU MANAGEMENT", 84.960, 85.000, 0.040, "MS", "NO"),
-    ("NE 53", "PITCH OIL", "PALM OLEO (KLANG)", 59.940, 80.000, 20.060, "MS", "NO"),
-    ("NE 54", "EFB OIL", "HOOD BUMI (PERAK/MARAN) EFB/165,155", 71.010, 80.000, 8.990, "MS", "NO"),
-    ("NE 55", "EFB OIL", "HOOD BUMI (PERAK) EFB 151/153/164", 64.560, 80.000, 15.440, "MS", "YES"),
-    ("NE 56", "LO1025", "BLEND", 20.660, 80.000, 59.340, "MS", "NO"),
-    ("NE 57", "EFB BLEND OIL", "*FOR NESTE/BALANCE*", 10.260, 80.000, 69.740, "MS", "NO"),
-    ("NE 58", "*CLEAN EX SLY", "", 0.0, 80.000, 80.000, "MS", "NO"),
-    ("NE 59", "SBEO", "ECOOILS PGU", 27.680, 85.000, 57.320, "MS", "NO"),
-    ("NE 60", "EFB OIL", "HOOD (PERAK)", 34.630, 50.000, 15.370, "SS", "NO"),
-    ("NE 61", "EFB OIL", "HOOD (PERAK/MARAN)", 144.340, 160.000, 15.660, "MS", "YES"),
-    ("NE 62", "SLB BLEND", "*SLB BLEND INPROGRESS/7MTS/ECO PGU", 64.932, 160.000, 95.068, "MS", "YES"),
-    ("NE 63", "OLCP06", "CARGILL P.P *TODAY NEED BLEND 25/09 EMEROL 100", 60.330, 60.000, -0.330, "SS", "NO"),
-    ("NE 64", "*CLEAN EX CCCO", "", 0.0, 60.000, 60.000, "SS", "NO"),
-    ("NE 65", "PENDING", "WILL FULLY UPDATE INFO BY THIS WEEK", 0.0, 60.000, 60.000, "TBA", "TBA"),
-    ("NE 66", "EFB OIL", "BIOVISION EFB/170", 34.400, 60.000, 25.600, "TBA", "TBA"),
-    ("NE 67", "SOAP STOCK", "*NE PRODUCTION INPROGRESS", 27.700, 30.000, 2.300, "TBA", "TBA"),
-    ("NE 68", "RESIDUE OIL", "BUNGE LIPID", 31.300, 30.000, -1.300, "TBA", "TBA"),
-    ("NE 69", "EMPTY", "", 0.0, 20.000, 20.000, "TBA", "TBA"),
-    ("NE 70", "EMPTY", "", 0.0, 20.000, 20.000, "TBA", "TBA"),
-    ("NE 71", "EFB OIL", "HOOD (PERAK)", 37.280, 50.000, 12.720, "TBA", "TBA"),
-    ("NE 72", "EMPTY", "", 0.0, 120.000, 120.000, "SS", "YES"),
-    ("NE 73", "EMPTY", "", 0.0, 120.000, 120.000, "SS", "YES"),
-    ("NE 74", "EMPTY", "", 0.0, 120.000, 120.000, "SS", "YES"),
-    ("NE 75", "EMPTY", "", 0.0, 120.000, 120.000, "SS", "YES"),
-    ("NE 76", "EMPTY", "", 0.0, 120.000, 120.000, "SS", "YES"),
-    ("NE 77", "MAO", "PT UNIVERSAL MAO/013 *INPROGRESS UNLOAD 25/09-flexi", 95.000, 120.000, 25.000, "SS", "YES"),
-    ("NE 78", "EMPTY", "", 0.0, 120.000, 120.000, "SS", "YES"),
-    ("SOAP PLANT TANK 4", "MAO", "MITSUI MAO/012", 19.770, 28.000, 8.230, "SS", "YES"),
-]
+# Reads Google Drive link from Render environment variable or web UI
+GOOGLE_DRIVE_URL = os.environ.get("GOOGLE_DRIVE_URL", os.environ.get("GOOGLE_SHEET_URL", ""))
 
-def ensure_excel_file_exists():
-    """Generates an initial Excel file with the NESB dataset if not present."""
-    if not os.path.exists(EXCEL_PATH):
-        print(f"[*] Creating sample Excel workbook: {EXCEL_PATH}")
-        df = pd.DataFrame(INITIAL_TANK_DATA, columns=[
-            "TANK NO.", "CARGO", "SUPPLIER", "TONNAGE", "TANK CAPACITY", "BALANCE", "TYPE", "HEATING COIL"
-        ])
-        with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name="TANK_STOCK", index=False, startrow=5)
-            ws = writer.sheets["TANK_STOCK"]
-            ws["B2"] = "NESB TANK STOCK"
-            ws["B4"] = "DATE :25.09.2026 @2PM"
+def get_google_drive_direct_url(url_or_id):
+    """
+    Transforms any Google Drive or Google Sheets link into a direct download URL.
+    """
+    raw = str(url_or_id).strip()
+    if not raw:
+        return None
 
-def parse_tank_sheet(filepath):
-    """Parses Excel with dynamic header detection (even if data starts on row 6)."""
-    if filepath.endswith('.csv'):
-        df_raw = pd.read_csv(filepath, header=None)
-    else:
-        df_raw = pd.read_excel(filepath, header=None)
+    # If it is a Google Sheets URL
+    sheet_match = re.search(r'/spreadsheets/d/([a-zA-Z0-9_-]+)', raw)
+    if sheet_match:
+        sheet_id = sheet_match.group(1)
+        return f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx"
 
-    # Search first 20 rows for "TANK NO."
+    # If it is a Google Drive file URL
+    file_match = re.search(r'/file/d/([a-zA-Z0-9_-]+)', raw)
+    if file_match:
+        file_id = file_match.group(1)
+        return f"https://drive.google.com/uc?export=download&id={file_id}"
+
+    # Query param ?id=...
+    id_param = re.search(r'[?&]id=([a-zA-Z0-9_-]+)', raw)
+    if id_param:
+        return f"https://drive.google.com/uc?export=download&id={id_param.group(1)}"
+
+    return raw
+
+def fetch_data_from_source():
+    """
+    Fetches data from Google Drive first. If not configured or offline, falls back to local Excel.
+    """
+    global GOOGLE_DRIVE_URL
+    source_name = "Local Excel File"
+    last_mod_str = "N/A"
+    df_raw = None
+
+    # 1. Fetch from Google Drive if URL is provided
+    if GOOGLE_DRIVE_URL:
+        direct_url = get_google_drive_direct_url(GOOGLE_DRIVE_URL)
+        try:
+            headers = {"User-Agent": "Mozilla/5.0"}
+            resp = requests.get(direct_url, headers=headers, timeout=12)
+            if resp.status_code == 200 and len(resp.content) > 500:
+                excel_bytes = io.BytesIO(resp.content)
+                df_raw = pd.read_excel(excel_bytes, header=None)
+                source_name = "Google Drive (Live Synced)"
+                last_mod_str = datetime.datetime.now().strftime("%d/%m/%Y %I:%M:%S %p")
+            else:
+                print(f"[Warning] Google Drive returned status {resp.status_code}. Using local file.")
+        except Exception as e:
+            print(f"[Warning] Failed fetching from Google Drive: {e}. Using local file.")
+
+    # 2. Fallback to local file if Google Drive not set or failed
+    if df_raw is None:
+        if os.path.exists(EXCEL_PATH):
+            df_raw = pd.read_excel(EXCEL_PATH, header=None)
+            mtime = os.path.getmtime(EXCEL_PATH)
+            last_mod_str = datetime.datetime.fromtimestamp(mtime).strftime("%d/%m/%Y %I:%M:%S %p")
+        else:
+            raise FileNotFoundError("Neither Google Drive URL nor local Excel file was found.")
+
+    return df_raw, source_name, last_mod_str
+
+def parse_tank_dataframe(df_raw):
+    """Dynamically parses tank headers and calculates helper fill & balance formulas."""
     header_row_idx = None
-    for r_idx in range(min(20, len(df_raw))):
+    for r_idx in range(min(25, len(df_raw))):
         row_values = [str(val).upper().strip() for val in df_raw.iloc[r_idx].dropna()]
         if any("TANK NO" in v or "TANK_NO" in v for v in row_values):
             header_row_idx = r_idx
             break
 
     if header_row_idx is None:
-        raise ValueError("Could not locate 'TANK NO.' header row in Excel file.")
+        raise ValueError("Could not find 'TANK NO.' header row in spreadsheet.")
 
     headers = [str(h).strip().upper() for h in df_raw.iloc[header_row_idx]]
     df = df_raw.iloc[header_row_idx + 1:].copy()
@@ -157,7 +133,6 @@ def parse_tank_sheet(filepath):
         if capacity <= 0:
             continue
 
-        # Helper formulas: TONNAGE / CAPACITY and BALANCE / CAPACITY
         liquid_fill_pct = (tonnage / capacity) * 100.0 if capacity > 0 else 0.0
         empty_space_pct = (balance / capacity) * 100.0 if capacity > 0 else 0.0
 
@@ -181,15 +156,13 @@ def parse_tank_sheet(filepath):
 def serve_index():
     if os.path.exists('index.html'):
         return send_file('index.html')
-    return "index.html not found. Place index.html in the same directory.", 404
+    return "index.html not found.", 404
 
 @app.route('/api/tanks')
 def get_tanks():
-    ensure_excel_file_exists()
     try:
-        tanks = parse_tank_sheet(EXCEL_PATH)
-        mtime = os.path.getmtime(EXCEL_PATH)
-        mod_time_str = datetime.datetime.fromtimestamp(mtime).strftime("%d/%m/%Y %I:%M:%S %p")
+        df_raw, source_name, last_mod_str = fetch_data_from_source()
+        tanks = parse_tank_dataframe(df_raw)
 
         total_cap = sum(t["capacity"] for t in tanks)
         total_stock = sum(t["tonnage"] for t in tanks)
@@ -198,8 +171,9 @@ def get_tanks():
 
         return jsonify({
             "success": True,
-            "filePath": EXCEL_PATH,
-            "lastModified": mod_time_str,
+            "source": source_name,
+            "isGoogleDrive": "Google Drive" in source_name,
+            "lastModified": last_mod_str,
             "tankCount": len(tanks),
             "summary": {
                 "totalCapacity": round(total_cap, 3),
@@ -215,23 +189,15 @@ def get_tanks():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route('/api/upload', methods=['POST'])
-def upload_excel():
-    if 'file' not in request.files:
-        return jsonify({"success": False, "error": "No file uploaded"}), 400
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"success": False, "error": "Empty filename"}), 400
-
-    filename = DEFAULT_EXCEL_FILENAME if file.filename.endswith('.xlsx') else file.filename
-    file.save(filename)
-    return jsonify({"success": True, "message": f"Updated {filename}"})
+@app.route('/api/config/drive', methods=['GET', 'POST'])
+def config_drive():
+    global GOOGLE_DRIVE_URL
+    if request.method == 'POST':
+        data = request.get_json() or {}
+        GOOGLE_DRIVE_URL = data.get('url', '').strip()
+        return jsonify({"success": True, "message": "Updated Google Drive link!"})
+    return jsonify({"googleDriveUrl": GOOGLE_DRIVE_URL})
 
 if __name__ == '__main__':
-    ensure_excel_file_exists()
-    print("=" * 65)
-    print("  NESB STORAGE TANK VISUALIZER - LIVE MONITORING SERVER")
-    print(f"  Watching Excel file: {os.path.abspath(EXCEL_PATH)}")
-    print("  Open browser: http://localhost:5000")
-    print("=" * 65)
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
