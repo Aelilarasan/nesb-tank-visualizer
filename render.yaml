@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: nesb-tank-visualizer
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn server:app
