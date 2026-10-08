@@ -4,9 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NESB Storage Tank Stock Visualizer</title>
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,6 +20,14 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen antialiased flex flex-col">
 
+  <!-- Notice shown if opened as local file:/// -->
+  <div id="fileProtocolBanner" class="hidden bg-amber-500/20 border-b border-amber-500/40 px-4 py-2 text-xs text-amber-200 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <span class="font-bold">⚠️ Note:</span>
+      <span>Opened as a local file. To sync live with Excel/Google Drive, run <code class="bg-slate-900 px-1 rounded font-mono">python app.py</code> and open <a href="http://localhost:5000" class="underline font-bold text-white">http://localhost:5000</a> (or your Render URL). Showing built-in tank stock below!</span>
+    </div>
+  </div>
+
   <!-- TOP HEADER -->
   <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur sticky top-0 z-40 px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
     <div class="flex items-center gap-3">
@@ -35,13 +41,17 @@
         </div>
         <p class="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
           <span id="liveStatusDot" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span id="liveFileStatus" class="font-mono text-[11px]">Connecting to server...</span>
+          <span id="liveFileStatus" class="font-mono text-[11px]">Connecting to live server...</span>
         </p>
       </div>
     </div>
 
-    <!-- Actions -->
     <div class="flex items-center gap-2">
+      <button onclick="openDriveModal()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs text-slate-200 rounded-lg transition">
+        <i data-lucide="cloud" class="w-3.5 h-3.5 text-amber-400"></i>
+        <span id="btnDriveLabel">Google Drive Sync</span>
+      </button>
+
       <button onclick="refreshData()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs text-slate-200 rounded-lg transition">
         <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
         <span>Refresh</span>
@@ -62,33 +72,33 @@
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3" id="statsGrid">
       <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5">
         <div class="text-[10px] text-slate-400 uppercase font-mono">Total Tanks</div>
-        <div class="text-2xl font-bold font-mono text-slate-100" id="kpiTotalTanks">-</div>
+        <div class="text-2xl font-bold font-mono text-slate-100" id="kpiTotalTanks">64</div>
         <div class="text-[10px] text-slate-500">NESB Farm</div>
       </div>
       <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5">
         <div class="text-[10px] text-slate-400 uppercase font-mono">Gross Capacity</div>
-        <div class="text-2xl font-bold font-mono text-slate-100"><span id="kpiGrossCap">-</span> <span class="text-xs text-slate-400 font-normal">MT</span></div>
+        <div class="text-2xl font-bold font-mono text-slate-100"><span id="kpiGrossCap">3,959.0</span> <span class="text-xs text-slate-400 font-normal">MT</span></div>
         <div class="text-[10px] text-slate-500">Nominal Total</div>
       </div>
       <div class="bg-slate-900 border border-amber-900/40 rounded-xl p-3.5">
         <div class="text-[10px] text-amber-300 uppercase font-mono">Current Stock</div>
-        <div class="text-2xl font-bold font-mono text-amber-200"><span id="kpiTotalStock">-</span> <span class="text-xs text-amber-400 font-normal">MT</span></div>
-        <div class="text-[10px] text-amber-400 font-mono" id="kpiFillPct">- % Fill</div>
+        <div class="text-2xl font-bold font-mono text-amber-200"><span id="kpiTotalStock">1,916.47</span> <span class="text-xs text-amber-400 font-normal">MT</span></div>
+        <div class="text-[10px] text-amber-400 font-mono" id="kpiFillPct">48.4% Fill</div>
       </div>
       <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5">
         <div class="text-[10px] text-slate-400 uppercase font-mono">Empty Ullage</div>
-        <div class="text-2xl font-bold font-mono text-slate-100"><span id="kpiTotalUllage">-</span> <span class="text-xs text-slate-400 font-normal">MT</span></div>
+        <div class="text-2xl font-bold font-mono text-slate-100"><span id="kpiTotalUllage">2,042.5</span> <span class="text-xs text-slate-400 font-normal">MT</span></div>
         <div class="text-[10px] text-emerald-400">Available Headspace</div>
       </div>
       <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5">
         <div class="text-[10px] text-slate-400 uppercase font-mono">Heated Tanks</div>
-        <div class="text-2xl font-bold font-mono text-orange-300" id="kpiHeatedCount">-</div>
+        <div class="text-2xl font-bold font-mono text-orange-300" id="kpiHeatedCount">26</div>
         <div class="text-[10px] text-orange-400/80">Coils Active</div>
       </div>
       <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5" id="kpiAlertCard">
         <div class="text-[10px] text-slate-400 uppercase font-mono">Overfill Alerts</div>
-        <div class="text-2xl font-bold font-mono text-rose-300" id="kpiOverfillCount">-</div>
-        <div class="text-[10px] text-rose-400/80" id="kpiAlertDesc">-</div>
+        <div class="text-2xl font-bold font-mono text-rose-300" id="kpiOverfillCount">3</div>
+        <div class="text-[10px] text-rose-400/80" id="kpiAlertDesc">NE 7, NE 63, NE 68</div>
       </div>
     </div>
 
@@ -124,8 +134,7 @@
       </div>
     </div>
 
-    <!-- MAIN DISPLAY AREA -->
-    <!-- View 1: 100% Stacked Column Chart Sim -->
+    <!-- MAIN DISPLAY AREA (100% Stacked Column Chart) -->
     <div id="chartContainer" class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg relative flex flex-col">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4 text-xs">
         <div>
@@ -139,18 +148,38 @@
       </div>
 
       <div class="overflow-x-auto custom-scrollbar pb-6" style="min-height: 380px;">
-        <div id="chartBars" class="flex items-end h-[280px] pt-4 pl-12 pr-4 relative min-w-max">
-          <!-- Bars generated via JS -->
-        </div>
+        <div id="chartBars" class="flex items-end h-[280px] pt-4 pl-12 pr-4 relative min-w-max"></div>
       </div>
     </div>
 
-    <!-- View 2: Tank Farm Grid View -->
-    <div id="gridContainer" class="hidden grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-      <!-- Cards generated via JS -->
-    </div>
+    <!-- Grid View -->
+    <div id="gridContainer" class="hidden grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"></div>
 
   </main>
+
+  <!-- MODAL: GOOGLE DRIVE CONNECTION -->
+  <div id="driveModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative space-y-4">
+      <button onclick="closeDriveModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      <div class="flex items-center gap-2.5">
+        <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+          <i data-lucide="cloud" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-slate-100">Connect to Google Drive</h3>
+          <p class="text-xs text-slate-400">Paste your share link to update daily without redeploying</p>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Google Drive or Sheets Link</label>
+        <input type="text" id="inputDriveUrl" placeholder="https://drive.google.com/file/d/..." class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 font-mono">
+      </div>
+      <div class="flex items-center justify-between pt-2">
+        <button onclick="saveDriveUrl()" class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition shadow">Save Link</button>
+        <button onclick="closeDriveModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition">Cancel</button>
+      </div>
+    </div>
+  </div>
 
   <!-- MODAL: TANK DOSSIER -->
   <div id="tankModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -161,7 +190,75 @@
   </div>
 
   <script>
-    let allTanks = [];
+    // Full initial 64 tanks dataset so tanks always render immediately
+    const FALLBACK_TANKS = [
+      { tankNo: "NE 1", cargo: "SOAP STOCK ACID OIL", supplier: "SSAO/001,002,003", tonnage: 37.91, capacity: 40.0, balance: 2.09, liquidFillPct: 94.78, emptySpacePct: 5.23, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 2", cargo: "*NEED CLEAN EX SLB", supplier: "", tonnage: 0, capacity: 40.0, balance: 40.0, liquidFillPct: 0, emptySpacePct: 100, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 3", cargo: "SOAP STOCK", supplier: "*NE PRODUCTION PROGRESS", tonnage: 27.34, capacity: 40.0, balance: 12.66, liquidFillPct: 68.35, emptySpacePct: 31.65, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 6", cargo: "LO1025", supplier: "BLEND", tonnage: 21.75, capacity: 25.0, balance: 3.25, liquidFillPct: 87.0, emptySpacePct: 13.0, type: "AL", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 7", cargo: "LO-LB50", supplier: "BLEND", tonnage: 25.04, capacity: 25.0, balance: -0.04, liquidFillPct: 100.16, emptySpacePct: -0.16, type: "AL", heatingCoil: "NO", isOverfilled: true },
+      { tankNo: "NE 8 (SUM 2)", cargo: "PREPARE DRAIN WATER/OIL", supplier: "", tonnage: 0, capacity: 24.0, balance: 24.0, liquidFillPct: 0, emptySpacePct: 100, type: "MS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 11 (SUM 3)", cargo: "PREPARE DRAIN WATER/OIL", supplier: "", tonnage: 0, capacity: 24.0, balance: 24.0, liquidFillPct: 0, emptySpacePct: 100, type: "MS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 14", cargo: "MFA", supplier: "JUKSAN (BOTTOM OIL) *NEED TRANSFER IBC", tonnage: 1.88, capacity: 35.0, balance: 33.12, liquidFillPct: 5.37, emptySpacePct: 94.63, type: "MS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 15", cargo: "SOAP STOCK ACID OIL", supplier: "SSAO/003", tonnage: 20.03, capacity: 35.0, balance: 14.97, liquidFillPct: 57.23, emptySpacePct: 42.77, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 16", cargo: "RESIDUE OIL", supplier: "BUNGE LIPID", tonnage: 35.3, capacity: 70.0, balance: 34.7, liquidFillPct: 50.43, emptySpacePct: 49.57, type: "SS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 21", cargo: "EFB OIL", supplier: "HOOD (MARAN)", tonnage: 5.08, capacity: 17.0, balance: 11.92, liquidFillPct: 29.88, emptySpacePct: 70.12, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 21A", cargo: "UCO BLEND", supplier: "", tonnage: 8.45, capacity: 17.0, balance: 8.55, liquidFillPct: 49.71, emptySpacePct: 50.29, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 22", cargo: "EMPTY", supplier: "", tonnage: 0, capacity: 8.0, balance: 8.0, liquidFillPct: 0, emptySpacePct: 100, type: "SS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 23", cargo: "LO-LB50", supplier: "BLEND", tonnage: 17.95, capacity: 60.0, balance: 42.05, liquidFillPct: 29.92, emptySpacePct: 70.08, type: "SS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 24", cargo: "EFB OIL", supplier: "BIOVISION EFB/168", tonnage: 35.36, capacity: 50.0, balance: 14.64, liquidFillPct: 70.72, emptySpacePct: 29.28, type: "SS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 25", cargo: "EFB OIL", supplier: "HOOD (MARAN/PERAK)", tonnage: 71.27, capacity: 80.0, balance: 8.73, liquidFillPct: 89.09, emptySpacePct: 10.91, type: "SS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 26", cargo: "SLB", supplier: "RICH OIL", tonnage: 63.14, capacity: 70.0, balance: 6.86, liquidFillPct: 90.20, emptySpacePct: 9.80, type: "SS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 27", cargo: "CRUDE GLYCERINE", supplier: "CGLY/001/26-BLD", tonnage: 20.0, capacity: 30.0, balance: 10.0, liquidFillPct: 66.67, emptySpacePct: 33.33, type: "SS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 28", cargo: "EFB OIL", supplier: "HOOD (MARAN) EFB/158", tonnage: 30.0, capacity: 30.0, balance: 0, liquidFillPct: 100.0, emptySpacePct: 0, type: "SS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 29", cargo: "EMPTY", supplier: "", tonnage: 0, capacity: 30.0, balance: 30.0, liquidFillPct: 0, emptySpacePct: 100, type: "SS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 30", cargo: "EFB OIL", supplier: "HOOD (PERAK)/(MARAN)", tonnage: 73.47, capacity: 85.0, balance: 11.53, liquidFillPct: 86.44, emptySpacePct: 13.56, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 32", cargo: "UNDER REPAIR", supplier: "", tonnage: 0, capacity: 48.0, balance: 48.0, liquidFillPct: 0, emptySpacePct: 100, type: "MS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 34", cargo: "SLB HIGH MOISTURE", supplier: "SLB/097, SLB/113 @ MAO/003", tonnage: 48.0, capacity: 48.0, balance: 0, liquidFillPct: 100.0, emptySpacePct: 0, type: "MS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 35", cargo: "IFWO (WATER)", supplier: "", tonnage: 20.0, capacity: 20.0, balance: 0, liquidFillPct: 100.0, emptySpacePct: 0, type: "SS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 36", cargo: "SOAP STOCK", supplier: "*NE PRODUCTION INPROGRESS", tonnage: 20.0, capacity: 20.0, balance: 0, liquidFillPct: 100.0, emptySpacePct: 0, type: "SS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 37", cargo: "SLY", supplier: "YOGESWARI SLY/048, 049, 050.", tonnage: 104.71, capacity: 105.0, balance: 0.29, liquidFillPct: 99.72, emptySpacePct: 0.28, type: "MS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 38", cargo: "MAO", supplier: "PT UNIVERSAL MAO/011", tonnage: 77.17, capacity: 105.0, balance: 27.83, liquidFillPct: 73.50, emptySpacePct: 26.50, type: "MS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 39", cargo: "TANK USED DRAIN/DIRT", supplier: "", tonnage: 0, capacity: 20.0, balance: 20.0, liquidFillPct: 0, emptySpacePct: 100, type: "SS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 40", cargo: "SLY", supplier: "YOGESWARI SLY/044, 036", tonnage: 33.72, capacity: 50.0, balance: 16.28, liquidFillPct: 67.44, emptySpacePct: 32.56, type: "SS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 41", cargo: "SLY", supplier: "YOGESWARI", tonnage: 4.77, capacity: 70.0, balance: 65.23, liquidFillPct: 6.81, emptySpacePct: 93.19, type: "MS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 42", cargo: "SLY", supplier: "YOGESWARI SLY/151", tonnage: 40.32, capacity: 70.0, balance: 29.68, liquidFillPct: 57.60, emptySpacePct: 42.40, type: "MS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 47", cargo: "EFB OIL", supplier: "HOOD (MARAN)", tonnage: 25.0, capacity: 25.0, balance: 0, liquidFillPct: 100.0, emptySpacePct: 0, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 48", cargo: "EFB OIL", supplier: "HOOD (MARAN)", tonnage: 11.14, capacity: 25.0, balance: 13.86, liquidFillPct: 44.56, emptySpacePct: 55.44, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 49", cargo: "PKAO", supplier: "YOGESWARI PKAO/016", tonnage: 42.74, capacity: 80.0, balance: 37.26, liquidFillPct: 53.43, emptySpacePct: 46.58, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 50", cargo: "EFB OIL", supplier: "BIOVISION EFB/146", tonnage: 35.26, capacity: 80.0, balance: 44.74, liquidFillPct: 44.08, emptySpacePct: 55.93, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 51", cargo: "EFB OIL", supplier: "BIOVISION EFB/152,156", tonnage: 70.92, capacity: 80.0, balance: 9.08, liquidFillPct: 88.65, emptySpacePct: 11.35, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 52", cargo: "PKAO", supplier: "SRI MAJU MANAGEMENT", tonnage: 84.96, capacity: 85.0, balance: 0.04, liquidFillPct: 99.95, emptySpacePct: 0.05, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 53", cargo: "PITCH OIL", supplier: "PALM OLEO (KLANG)", tonnage: 59.94, capacity: 80.0, balance: 20.06, liquidFillPct: 74.93, emptySpacePct: 25.08, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 54", cargo: "EFB OIL", supplier: "HOOD BUMI (PERAK/MARAN) EFB/165,155", tonnage: 71.01, capacity: 80.0, balance: 8.99, liquidFillPct: 88.76, emptySpacePct: 11.24, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 55", cargo: "EFB OIL", supplier: "HOOD BUMI (PERAK) EFB 151/153/164", tonnage: 64.56, capacity: 80.0, balance: 15.44, liquidFillPct: 80.70, emptySpacePct: 19.30, type: "MS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 56", cargo: "LO1025", supplier: "BLEND", tonnage: 20.66, capacity: 80.0, balance: 59.34, liquidFillPct: 25.83, emptySpacePct: 74.18, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 57", cargo: "EFB BLEND OIL", supplier: "*FOR NESTE/BALANCE*", tonnage: 10.26, capacity: 80.0, balance: 69.74, liquidFillPct: 12.83, emptySpacePct: 87.18, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 58", cargo: "*CLEAN EX SLY", supplier: "", tonnage: 0, capacity: 80.0, balance: 80.0, liquidFillPct: 0, emptySpacePct: 100, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 59", cargo: "SBEO", supplier: "ECOOILS PGU", tonnage: 27.68, capacity: 85.0, balance: 57.32, liquidFillPct: 32.56, emptySpacePct: 67.44, type: "MS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 60", cargo: "EFB OIL", supplier: "HOOD (PERAK)", tonnage: 34.63, capacity: 50.0, balance: 15.37, liquidFillPct: 69.26, emptySpacePct: 30.74, type: "SS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 61", cargo: "EFB OIL", supplier: "HOOD (PERAK/MARAN)", tonnage: 144.34, capacity: 160.0, balance: 15.66, liquidFillPct: 90.21, emptySpacePct: 9.79, type: "MS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 62", cargo: "SLB BLEND", supplier: "*SLB BLEND INPROGRESS/7MTS/ECO PGU", tonnage: 64.932, capacity: 160.0, balance: 95.068, liquidFillPct: 40.58, emptySpacePct: 59.42, type: "MS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 63", cargo: "OLCP06", supplier: "CARGILL P.P *TODAY NEED BLEND 25/09 EMEROL 100", tonnage: 60.33, capacity: 60.0, balance: -0.33, liquidFillPct: 100.55, emptySpacePct: -0.55, type: "SS", heatingCoil: "NO", isOverfilled: true },
+      { tankNo: "NE 64", cargo: "*CLEAN EX CCCO", supplier: "", tonnage: 0, capacity: 60.0, balance: 60.0, liquidFillPct: 0, emptySpacePct: 100, type: "SS", heatingCoil: "NO", isOverfilled: false },
+      { tankNo: "NE 65", cargo: "PENDING", supplier: "WILL FULLY UPDATE INFO BY THIS WEEK", tonnage: 0, capacity: 60.0, balance: 60.0, liquidFillPct: 0, emptySpacePct: 100, type: "TBA", heatingCoil: "TBA", isOverfilled: false },
+      { tankNo: "NE 66", cargo: "EFB OIL", supplier: "BIOVISION EFB/170", tonnage: 34.4, capacity: 60.0, balance: 25.6, liquidFillPct: 57.33, emptySpacePct: 42.67, type: "TBA", heatingCoil: "TBA", isOverfilled: false },
+      { tankNo: "NE 67", cargo: "SOAP STOCK", supplier: "*NE PRODUCTION INPROGRESS", tonnage: 27.7, capacity: 30.0, balance: 2.3, liquidFillPct: 92.33, emptySpacePct: 7.67, type: "TBA", heatingCoil: "TBA", isOverfilled: false },
+      { tankNo: "NE 68", cargo: "RESIDUE OIL", supplier: "BUNGE LIPID", tonnage: 31.3, capacity: 30.0, balance: -1.3, liquidFillPct: 104.33, emptySpacePct: -4.33, type: "TBA", heatingCoil: "TBA", isOverfilled: true },
+      { tankNo: "NE 69", cargo: "EMPTY", supplier: "", tonnage: 0, capacity: 20.0, balance: 20.0, liquidFillPct: 0, emptySpacePct: 100, type: "TBA", heatingCoil: "TBA", isOverfilled: false },
+      { tankNo: "NE 70", cargo: "EMPTY", supplier: "", tonnage: 0, capacity: 20.0, balance: 20.0, liquidFillPct: 0, emptySpacePct: 100, type: "TBA", heatingCoil: "TBA", isOverfilled: false },
+      { tankNo: "NE 71", cargo: "EFB OIL", supplier: "HOOD (PERAK)", tonnage: 37.28, capacity: 50.0, balance: 12.72, liquidFillPct: 74.56, emptySpacePct: 25.44, type: "TBA", heatingCoil: "TBA", isOverfilled: false },
+      { tankNo: "NE 72", cargo: "EMPTY", supplier: "", tonnage: 0, capacity: 120.0, balance: 120.0, liquidFillPct: 0, emptySpacePct: 100, type: "SS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 73", cargo: "EMPTY", supplier: "", tonnage: 0, capacity: 120.0, balance: 120.0, liquidFillPct: 0, emptySpacePct: 100, type: "SS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 74", cargo: "EMPTY", supplier: "", tonnage: 0, capacity: 120.0, balance: 120.0, liquidFillPct: 0, emptySpacePct: 100, type: "SS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 75", cargo: "EMPTY", supplier: "", tonnage: 0, capacity: 120.0, balance: 120.0, liquidFillPct: 0, emptySpacePct: 100, type: "SS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 76", cargo: "EMPTY", supplier: "", tonnage: 0, capacity: 120.0, balance: 120.0, liquidFillPct: 0, emptySpacePct: 100, type: "SS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 77", cargo: "MAO", supplier: "PT UNIVERSAL MAO/013 *INPROGRESS UNLOAD 25/09-flexi", tonnage: 95.0, capacity: 120.0, balance: 25.0, liquidFillPct: 79.17, emptySpacePct: 20.83, type: "SS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "NE 78", cargo: "EMPTY", supplier: "", tonnage: 0, capacity: 120.0, balance: 120.0, liquidFillPct: 0, emptySpacePct: 100, type: "SS", heatingCoil: "YES", isOverfilled: false },
+      { tankNo: "SOAP PLANT TANK 4", cargo: "MAO", supplier: "MITSUI MAO/012", tonnage: 19.77, capacity: 28.0, balance: 8.23, liquidFillPct: 70.61, emptySpacePct: 29.39, type: "SS", heatingCoil: "YES", isOverfilled: false }
+    ];
+
+    let allTanks = [...FALLBACK_TANKS];
     let currentTheme = 'amber';
     let currentView = 'chart';
 
@@ -180,24 +277,52 @@
 
     const emptyGradient = 'linear-gradient(90deg, #cbd5e1 0%, #f8fafc 45%, #e2e8f0 80%, #94a3b8 100%)';
 
+    if (window.location.protocol === 'file:') {
+      document.getElementById('fileProtocolBanner').classList.remove('hidden');
+    }
+
     async function refreshData() {
       try {
         const res = await fetch('/api/tanks');
         const data = await res.json();
-        if (data.success) {
+        if (data.success && data.tanks && data.tanks.length > 0) {
           allTanks = data.tanks;
-          document.getElementById('liveFileStatus').innerText = data.filePath + ' • ' + data.lastModified;
+          document.getElementById('liveFileStatus').innerText = data.source + ' • ' + data.lastModified;
           document.getElementById('liveStatusDot').className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+          if (data.isGoogleDrive) {
+            document.getElementById('btnDriveLabel').innerText = "Drive Connected ✓";
+          }
           updateKPIs(data.summary);
           applyFilters();
-        } else {
-          document.getElementById('liveFileStatus').innerText = 'Error: ' + data.error;
-          document.getElementById('liveStatusDot').className = "w-2 h-2 rounded-full bg-rose-500";
+          return;
         }
       } catch (err) {
-        document.getElementById('liveFileStatus').innerText = 'Server offline (run server.py)';
-        document.getElementById('liveStatusDot').className = "w-2 h-2 rounded-full bg-amber-500";
+        // Fallback to embedded demo data if server is offline or opened via file:///
       }
+
+      loadFallbackData();
+    }
+
+    function loadFallbackData() {
+      allTanks = [...FALLBACK_TANKS];
+      const isFile = window.location.protocol === 'file:';
+      document.getElementById('liveFileStatus').innerText = isFile 
+        ? "Standalone Mode (file:///) • Open http://localhost:5000 for live Excel"
+        : "Server connecting/asleep • Showing 64 tanks • Retrying...";
+      document.getElementById('liveStatusDot').className = "w-2 h-2 rounded-full bg-amber-500";
+      
+      const totCap = allTanks.reduce((a, t) => a + t.capacity, 0);
+      const totStk = allTanks.reduce((a, t) => a + t.tonnage, 0);
+      const totBal = allTanks.reduce((a, t) => a + Math.max(0, t.balance), 0);
+      updateKPIs({
+        totalCapacity: totCap,
+        totalStock: totStk,
+        totalBalance: totBal,
+        plantFillPct: (totStk / totCap) * 100,
+        heatedCount: allTanks.filter(t => t.heatingCoil === 'YES').length,
+        overfilledCount: allTanks.filter(t => t.isOverfilled).length
+      });
+      applyFilters();
     }
 
     function updateKPIs(s) {
@@ -244,7 +369,7 @@
         const col = document.createElement('div');
         col.className = "flex flex-col items-center justify-end h-full group relative cursor-pointer";
         col.style.width = "36px";
-        col.style.marginRight = "6px"; // 15% Gap Width
+        col.style.marginRight = "6px";
         col.onclick = () => openTankModal(t);
 
         col.innerHTML = `
@@ -309,10 +434,10 @@
         </div>
         <div class="space-y-2 text-xs">
           <div class="flex justify-between border-b border-slate-800 pb-1"><span class="text-slate-400">Cargo:</span><span class="font-semibold text-slate-200">${t.cargo || 'Empty'}</span></div>
-          <div class="flex justify-between border-b border-slate-800 pb-1"><span class="text-slate-400">Supplier / Batch:</span><span class="text-slate-300">${t.supplier || '-'}</span></div>
+          <div class="flex justify-between border-b border-slate-800 pb-1"><span class="text-slate-400">Supplier:</span><span class="text-slate-300">${t.supplier || '-'}</span></div>
           <div class="flex justify-between border-b border-slate-800 pb-1"><span class="text-slate-400">Tonnage:</span><span class="font-mono font-bold text-amber-300">${t.tonnage.toFixed(3)} MT</span></div>
           <div class="flex justify-between border-b border-slate-800 pb-1"><span class="text-slate-400">Capacity:</span><span class="font-mono text-slate-200">${t.capacity.toFixed(3)} MT</span></div>
-          <div class="flex justify-between border-b border-slate-800 pb-1"><span class="text-slate-400">Balance / Ullage:</span><span class="font-mono font-bold ${t.balance < 0 ? 'text-rose-400' : 'text-emerald-400'}">${t.balance.toFixed(3)} MT</span></div>
+          <div class="flex justify-between border-b border-slate-800 pb-1"><span class="text-slate-400">Balance:</span><span class="font-mono font-bold ${t.balance < 0 ? 'text-rose-400' : 'text-emerald-400'}">${t.balance.toFixed(3)} MT</span></div>
           <div class="flex justify-between border-b border-slate-800 pb-1"><span class="text-slate-400">Heating Coil:</span><span class="text-slate-200">${t.heatingCoil === 'YES' ? '🔥 Steam Heated' : 'No Coil'}</span></div>
           <div class="p-2.5 bg-slate-950 rounded-lg font-mono text-[11px] space-y-1 mt-3">
             <div class="text-amber-300 flex justify-between"><span>Liquid Fill %:</span><span>${t.liquidFillPct.toFixed(2)}%</span></div>
@@ -325,6 +450,34 @@
     }
 
     function closeModal() { document.getElementById('tankModal').classList.add('hidden'); }
+    function openDriveModal() {
+      fetch('/api/config/drive').then(r => r.json()).then(d => {
+        if (d.googleDriveUrl) document.getElementById('inputDriveUrl').value = d.googleDriveUrl;
+        document.getElementById('driveModal').classList.remove('hidden');
+      }).catch(() => {
+        document.getElementById('driveModal').classList.remove('hidden');
+      });
+    }
+    function closeDriveModal() { document.getElementById('driveModal').classList.add('hidden'); }
+
+    async function saveDriveUrl() {
+      const url = document.getElementById('inputDriveUrl').value.trim();
+      try {
+        const res = await fetch('/api/config/drive', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ url })
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeDriveModal();
+          refreshData();
+        }
+      } catch (e) {
+        alert("Server not responding. Please make sure python app.py is running!");
+      }
+    }
+
     function setView(v) {
       currentView = v;
       if (v === 'chart') {
@@ -353,9 +506,10 @@
       } catch (err) { alert('Upload failed: ' + err); }
     }
 
-    // Live auto-polling every 5 seconds to catch Excel saves
-    setInterval(refreshData, 5000);
+    // Load fallback first, then poll for live sync
+    loadFallbackData();
     refreshData();
+    setInterval(refreshData, 5000);
     lucide.createIcons();
   </script>
 </body>
